@@ -1,11 +1,4 @@
-/**
- * @file scenedata.h
- *
- * Header file containing scene data structures.
- */
-
-#ifndef __SCENE_DATA__
-#define __SCENE_DATA__
+#pragma once
 
 #include <vector>
 #include <string>
@@ -13,7 +6,10 @@
 #include "glm/glm.hpp"
 
 enum class LightType {
-    LIGHT_POINT, LIGHT_DIRECTIONAL, LIGHT_SPOT, LIGHT_AREA
+    LIGHT_POINT,
+    LIGHT_DIRECTIONAL,
+    LIGHT_SPOT,
+    LIGHT_AREA
 };
 
 enum class PrimitiveType {
@@ -27,28 +23,25 @@ enum class PrimitiveType {
 
 // Enumeration for types of transformations that can be applied to objects, lights, and cameras.
 enum TransformationType {
-    TRANSFORMATION_TRANSLATE, TRANSFORMATION_SCALE, TRANSFORMATION_ROTATE, TRANSFORMATION_MATRIX
+    TRANSFORMATION_TRANSLATE,
+    TRANSFORMATION_SCALE,
+    TRANSFORMATION_ROTATE,
+    TRANSFORMATION_MATRIX
 };
 
-template <typename Enumeration>
-auto as_integer(Enumeration const value)
-    -> typename std::underlying_type< Enumeration >::type
-{
-    return static_cast<typename std::underlying_type<Enumeration>::type>(value);
-}
-
-// Struct to store a RGBA color in floats [0,1]
+// Type which can be used to store an RGBA color in floats [0,1]
 using SceneColor = glm::vec4;
 
-// Scene global color coefficients
+// Struct which contains the global color coefficients of a scene.
+// These are multiplied with the object-specific materials in the lighting equation.
 struct SceneGlobalData  {
-    float ka;  // global ambient coefficient
-    float kd;  // global diffuse coefficient
-    float ks;  // global specular coefficient
-    float kt;  // global transparency coefficient
+    float ka; // Ambient term
+    float kd; // Diffuse term
+    float ks; // Specular term
+    float kt; // Transparency; used for extra credit (refraction)
 };
 
-// Data for a single light
+// Struct which contains data for a single light
 struct SceneLightData {
     int id;
     LightType type;
@@ -65,7 +58,7 @@ struct SceneLightData {
     float width, height; // Only applicable to area lights
 };
 
-// Data for scene camera
+// Struct which contains data for the camera of a scene
 struct SceneCameraData {
     glm::vec4 pos;
     glm::vec4 look;
@@ -77,7 +70,7 @@ struct SceneCameraData {
     float focalLength;   // Only applicable for depth of field
 };
 
-// Data for file maps (ie: texture maps)
+// Struct which contains data for texture mapping files
 struct SceneFileMap {
     SceneFileMap() : isUsed(false) {}
 
@@ -95,67 +88,72 @@ struct SceneFileMap {
     }
 };
 
-// Data for scene materials
+// Struct which contains data for a material (e.g. one which might be assigned to an object)
 struct SceneMaterial {
-   // This field specifies the diffuse color of the object. This is the color you need to use for
-   // the object in sceneview. You can get away with ignoring the other color values until
-   // intersect and ray.
-   SceneColor cDiffuse;
-   SceneColor cAmbient;
-   SceneColor cReflective;
-   SceneColor cSpecular;
-   SceneColor cTransparent;
-   SceneColor cEmissive;
+   SceneColor cAmbient;     // Ambient term
+   SceneColor cDiffuse;     // Diffuse term
+   SceneColor cSpecular;    // Specular term
+   float shininess;         // Specular exponent
 
-   SceneFileMap textureMap;
-   float blend;
+   SceneColor cReflective;  // Used to weight contribution of reflected ray lighting (via multiplication)
 
-   SceneFileMap bumpMap;
+   SceneColor cTransparent; // Transparency;        used for extra credit (refraction)
+   float ior;               // Index of refraction; used for extra credit (refraction)
 
-   float shininess;
+   SceneFileMap textureMap; // Used for texture mapping
+   float blend;             // Used for texture mapping
 
-   float ior; // index of refraction
+   SceneColor cEmissive;    // Not used
+   SceneFileMap bumpMap;    // Not used
 
    void clear() {
-       cAmbient.r = 0.0f; cAmbient.g = 0.0f; cAmbient.b = 0.0f; cAmbient.a = 0.0f;
-       cDiffuse.r = 0.0f; cDiffuse.g = 0.0f; cDiffuse.b = 0.0f; cDiffuse.a = 0.0f;
-       cSpecular.r = 0.0f; cSpecular.g = 0.0f; cSpecular.b = 0.0f; cSpecular.a = 0.0f;
-       cReflective.r = 0.0f; cReflective.g = 0.0f; cReflective.b = 0.0f; cReflective.a = 0.0f;
-       cTransparent.r = 0.0f; cTransparent.g = 0.0f; cTransparent.b = 0.0f; cTransparent.a = 0.0f;
-       cEmissive.r = 0.0f; cEmissive.g = 0.0f; cEmissive.b = 0.0f; cEmissive.a = 0.0f;
+       cAmbient    = glm::vec4(0);
+       cDiffuse    = glm::vec4(0);
+       cSpecular   = glm::vec4(0);
+       shininess   = 0;
+
+       cReflective = glm::vec4(0);
+
+       cTransparent = glm::vec4(0);
+       ior = 0;
+
        textureMap.clear();
+       blend = 0;
+
+       cEmissive = glm::vec4(0);
        bumpMap.clear();
-       blend = 0.0f;
-       shininess = 0.0f;
-       ior = 0.0;
    }
 };
 
+// Struct which contains data for a single primitive in a scene
 struct ScenePrimitive {
    PrimitiveType type;
-   std::string meshfile;     // Only applicable to meshes
    SceneMaterial material;
+   std::string meshfile; // Used for triangle meshes
 };
 
-// Data for transforming a scene object. Aside from the TransformationType, the remaining of the
-// data in the struct is mutually exclusive.
+// Struct which contains data for a transformation.
+// Only one of the following should be defined, corresponding to the appropriate transformation type:
+// - `translate`,
+// - `scale`,
+// - `rotate` & `angle`, or
+// - `matrix`
 struct SceneTransformation {
     TransformationType type;
 
     // The translation vector. Only valid if transformation is a translation.
     glm::vec3 translate;
-    // The scale vector. Only valid if transformation is a scale.
+    // The scale vector.       Only valid if transformation is a scale.
     glm::vec3 scale;
-    // The axis of rotation. Only valid if the transformation is a rotation.
+    // The axis of rotation.   Only valid if the transformation is a rotation.
     glm::vec3 rotate;
     // The rotation angle in RADIANS. Only valid if transformation is a rotation.
     float angle;
-    // The matrix for the transformation.
-    // Only valid if the transformation is a custom matrix.
+    // The matrix for the transformation. Only valid if the transformation is a custom matrix.
     glm::mat4x4 matrix;
 };
 
-// Structure for non-primitive scene objects
+// Struct which represents a node in the scene graph/tree, to be parsed by the student's `SceneParser`.
 struct SceneNode {
    std::vector<SceneTransformation*> transformations;
 
@@ -164,5 +162,4 @@ struct SceneNode {
    std::vector<SceneNode*> children;
 };
 
-#endif
 

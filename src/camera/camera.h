@@ -1,41 +1,32 @@
-#ifndef CAMERA_H
-#define CAMERA_H
+#pragma once
 
 #include <glm/glm.hpp>
 
-/**
- * @class Camera
- *
- * An abstract class representing the interface of a virtual camera.
- * You should implement your own camera class conforming to this interface.
- */
+// A class representing a virtual camera.
+
+// Feel free to make your own design choices for RayTraceScene, the functions below are all optional / for your convenience.
+// You can either implement and use these getters, or make your own design.
+// If you decide to make your own design, feel free to delete these as TAs won't rely on them to grade your assignments.
 
 class Camera {
 public:
     // Returns the view matrix for the current camera settings.
-    virtual glm::mat4x4 getViewMatrix() const = 0;
-
-    // Returns the transformation matrix (the inverse of view matrix) for the current camera settings.
-    virtual glm::mat4x4 getTransformationMatrix() const = 0;
+    // You might also want to define another function that return the inverse of the view matrix.
+    glm::mat4 getViewMatrix() const;
 
     // Returns the aspect ratio of the camera.
-    virtual float getAspectRatio() const = 0;
+    float getAspectRatio() const;
 
-    // Returns the height angle in RADIAN of the camera.
-    virtual float getHeightAngle() const = 0;
-
-    // Returns the focal length of this camera.
-    // This is for depth of field feature only,
-    // You can ignore and don't implement this function if you are not intending to implement depth of field.
-    virtual float getFocalLength() const { return 0.f; }
+    // Returns the height angle of the camera in RADIANS.
+    float getHeightAngle() const;
 
     // Returns the focal length of this camera.
-    // This is for depth of field feature only,
-    // You can ignore and don't implement this function if you are not intending to implement depth of field.
-    virtual float getAperture() const { return 0.f; }
+    // This is for the depth of field extra-credit feature only;
+    // You can ignore if you are not attempting to implement depth of field.
+    float getFocalLength() const;
 
-
-    virtual glm::vec4 getLook() const { return glm::vec4(0); }
+    // Returns the focal length of this camera.
+    // This is for the depth of field extra-credit feature only;
+    // You can ignore if you are not attempting to implement depth of field.
+    float getAperture() const;
 };
-
-#endif // CAMERA_H

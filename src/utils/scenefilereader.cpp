@@ -1,7 +1,3 @@
-/*
-* CS123 New Parser for XML
-*/
-
 #include "scenefilereader.h"
 #include "scenedata.h"
 
@@ -19,6 +15,8 @@
    << ">" << std::endl
 #define UNSUPPORTED_ELEMENT(e) std::cout << ERROR_AT(e) << "unsupported element <" \
    << e.tagName().toStdString() << ">" << std::endl;
+
+// Students, please ignore this file.
 
 ScenefileReader::ScenefileReader(const std::string& name)
 {

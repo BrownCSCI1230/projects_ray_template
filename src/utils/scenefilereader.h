@@ -1,5 +1,4 @@
-#ifndef __ScenefileReader__
-#define __ScenefileReader__
+#pragma once
 
 #include "scenedata.h"
 
@@ -8,17 +7,8 @@
 
 #include <QDomDocument>
 
-/**
- * @class ScenefileReader
- *
- * This class parses the scene graph specified by the CS123 Xml file format.
- *
- * The parser is designed to replace the TinyXML parser that was in turn designed to replace the
- * Flex/Yacc/Bison parser.
- */
-
+// This class parses the scene graph specified by the CS123 Xml file format.
 class ScenefileReader {
-
 public:
     // Create a ScenefileReader, passing it the scene file.
     ScenefileReader(const std::string& filename);
@@ -54,6 +44,3 @@ private:
     std::vector<SceneLightData*> m_lights;
     std::vector<SceneNode*> m_nodes;
 };
-
-#endif
-

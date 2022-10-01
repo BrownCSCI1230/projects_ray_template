@@ -1,27 +1,27 @@
 #include <stdexcept>
-#include "raytracescene.h"
-#include "utils/sceneparser.h"
+#include "camera.h"
 
-RayTraceScene::RayTraceScene(int width, int height, const RenderData &metaData) {
-    // Optional TODO: implement this. Store whatever you feel is necessary.
-}
-
-const int& RayTraceScene::width() const {
+glm::mat4 Camera::getViewMatrix() const {
     // Optional TODO: implement the getter or make your own design
     throw std::runtime_error("not implemented");
 }
 
-const int& RayTraceScene::height() const {
+float Camera::getAspectRatio() const {
     // Optional TODO: implement the getter or make your own design
     throw std::runtime_error("not implemented");
 }
 
-const SceneGlobalData& RayTraceScene::getGlobalData() const {
+float Camera::getHeightAngle() const {
     // Optional TODO: implement the getter or make your own design
     throw std::runtime_error("not implemented");
 }
 
-const Camera& RayTraceScene::getCamera() const {
+float Camera::getFocalLength() const {
+    // Optional TODO: implement the getter or make your own design
+    throw std::runtime_error("not implemented");
+}
+
+float Camera::getAperture() const {
     // Optional TODO: implement the getter or make your own design
     throw std::runtime_error("not implemented");
 }
