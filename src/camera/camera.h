@@ -4,7 +4,7 @@
 
 // A class representing a virtual camera.
 
-// Feel free to make your own design choices for RayTraceScene, the functions below are all optional / for your convenience.
+// Feel free to make your own design choices for Camera class, the functions below are all optional / for your convenience.
 // You can either implement and use these getters, or make your own design.
 // If you decide to make your own design, feel free to delete these as TAs won't rely on them to grade your assignments.
 
