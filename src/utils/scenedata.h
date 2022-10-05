@@ -2,15 +2,18 @@
 
 #include <vector>
 #include <string>
+
 #include <glm/glm.hpp>
 
+// Enum of the types of virtual lights that might be in the scene
 enum class LightType {
     LIGHT_POINT,
     LIGHT_DIRECTIONAL,
     LIGHT_SPOT,
-    LIGHT_AREA
+    LIGHT_AREA // No longer supported
 };
 
+// Enum of the types of primitives that might be in the scene
 enum class PrimitiveType {
     PRIMITIVE_CUBE,
     PRIMITIVE_CONE,
@@ -20,7 +23,7 @@ enum class PrimitiveType {
     PRIMITIVE_MESH
 };
 
-// Enumeration for types of transformations that can be applied to objects, lights, and cameras.
+// Enum of the types of transformations that can be applied
 enum class TransformationType {
     TRANSFORMATION_TRANSLATE,
     TRANSFORMATION_SCALE,
@@ -54,7 +57,7 @@ struct SceneLightData {
     float penumbra;      // Only applicable to spot lights, in RADIANS
     float angle;         // Only applicable to spot lights, in RADIANS
 
-    float width, height; // Only applicable to area lights
+    float width, height; // No longer supported (area lights)
 };
 
 // Struct which contains data for the camera of a scene
@@ -128,28 +131,18 @@ struct SceneMaterial {
 struct ScenePrimitive {
    PrimitiveType type;
    SceneMaterial material;
-   std::string meshfile; // Used for triangle meshes
+   std::string   meshfile; // Used for triangle meshes
 };
 
 // Struct which contains data for a transformation.
-// Only one of the following should be defined, corresponding to the appropriate transformation type:
-// - `translate`,
-// - `scale`,
-// - `rotate` & `angle`, or
-// - `matrix`
 struct SceneTransformation {
     TransformationType type;
-
-    // The translation vector. Only valid if transformation is a translation.
-    glm::vec3 translate;
-    // The scale vector.       Only valid if transformation is a scale.
-    glm::vec3 scale;
-    // The axis of rotation.   Only valid if the transformation is a rotation.
-    glm::vec3 rotate;
-    // The rotation angle in RADIANS. Only valid if transformation is a rotation.
-    float angle;
-    // The matrix for the transformation. Only valid if the transformation is a custom matrix.
-    glm::mat4x4 matrix;
+   
+    glm::vec3 translate; // Only applicable to translations
+    glm::vec3 scale;     // Only applicable to scaling transformations
+    glm::vec3 rotate;    // Only applicable to rotations
+    float angle;         // Only applicable to rotations, in RADIANS
+    glm::mat4x4 matrix;  // Only applicable to transformations with custom matrices
 };
 
 // Struct which represents a node in the scene graph/tree, to be parsed by the student's `SceneParser`.
@@ -160,5 +153,4 @@ struct SceneNode {
 
    std::vector<SceneNode*> children;
 };
-
 
