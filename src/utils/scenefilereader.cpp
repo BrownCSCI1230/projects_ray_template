@@ -586,7 +586,7 @@ bool ScenefileReader::parseTransBlock(const QDomElement &transblock, SceneNode* 
        if (e.tagName() == "translate") {
            SceneTransformation *t = new SceneTransformation();
            node->transformations.push_back(t);
-           t->type = TRANSFORMATION_TRANSLATE;
+           t->type = TransformationType::TRANSFORMATION_TRANSLATE;
 
            if (!parseTriple(e, t->translate.x, t->translate.y, t->translate.z, "x", "y", "z")) {
                PARSE_ERROR(e);
@@ -595,7 +595,7 @@ bool ScenefileReader::parseTransBlock(const QDomElement &transblock, SceneNode* 
        } else if (e.tagName() == "rotate") {
            SceneTransformation *t = new SceneTransformation();
            node->transformations.push_back(t);
-           t->type = TRANSFORMATION_ROTATE;
+           t->type = TransformationType::TRANSFORMATION_ROTATE;
 
            float angle;
            if (!parseQuadruple(e, t->rotate.x, t->rotate.y, t->rotate.z, angle, "x", "y", "z", "angle")) {
@@ -608,7 +608,7 @@ bool ScenefileReader::parseTransBlock(const QDomElement &transblock, SceneNode* 
        } else if (e.tagName() == "scale") {
            SceneTransformation *t = new SceneTransformation();
            node->transformations.push_back(t);
-           t->type = TRANSFORMATION_SCALE;
+           t->type = TransformationType::TRANSFORMATION_SCALE;
 
            if (!parseTriple(e, t->scale.x, t->scale.y, t->scale.z, "x", "y", "z")) {
                PARSE_ERROR(e);
@@ -617,7 +617,7 @@ bool ScenefileReader::parseTransBlock(const QDomElement &transblock, SceneNode* 
        } else if (e.tagName() == "matrix") {
            SceneTransformation* t = new SceneTransformation();
            node->transformations.push_back(t);
-           t->type = TRANSFORMATION_MATRIX;
+           t->type = TransformationType::TRANSFORMATION_MATRIX;
 
            if (!parseMatrix(e, t->matrix)) {
                PARSE_ERROR(e);

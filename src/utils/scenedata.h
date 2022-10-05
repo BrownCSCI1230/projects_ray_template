@@ -2,8 +2,7 @@
 
 #include <vector>
 #include <string>
-
-#include "glm/glm.hpp"
+#include <glm/glm.hpp>
 
 enum class LightType {
     LIGHT_POINT,
@@ -22,7 +21,7 @@ enum class PrimitiveType {
 };
 
 // Enumeration for types of transformations that can be applied to objects, lights, and cameras.
-enum TransformationType {
+enum class TransformationType {
     TRANSFORMATION_TRANSLATE,
     TRANSFORMATION_SCALE,
     TRANSFORMATION_ROTATE,
