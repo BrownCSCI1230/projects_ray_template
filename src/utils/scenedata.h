@@ -138,11 +138,11 @@ struct ScenePrimitive {
 struct SceneTransformation {
     TransformationType type;
    
-    glm::vec3 translate; // Only applicable to translations
-    glm::vec3 scale;     // Only applicable to scaling transformations
-    glm::vec3 rotate;    // Only applicable to rotations
-    float angle;         // Only applicable to rotations, in RADIANS
-    glm::mat4x4 matrix;  // Only applicable to transformations with custom matrices
+    glm::vec3 translate; // Only applicable when translating. Defines t_x, t_y, and t_z, the amounts to translate by, along each axis.
+    glm::vec3 scale;     // Only applicable when scaling.     Defines s_x, s_y, and s_z, the amounts to scale by, along each axis.
+    glm::vec3 rotate;    // Only applicable when rotating.    Defines the axis of rotation; should be a unit vector.
+    float angle;         // Only applicable when rotating.    Defines the angle to rotate by in RADIANS, following the right-hand rule.
+    glm::mat4 matrix;    // Only applicable when transforming by a custom matrix. This is that custom matrix.
 };
 
 // Struct which represents a node in the scene graph/tree, to be parsed by the student's `SceneParser`.
