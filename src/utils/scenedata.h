@@ -146,11 +146,9 @@ struct SceneTransformation {
 };
 
 // Struct which represents a node in the scene graph/tree, to be parsed by the student's `SceneParser`.
-// If a SceneNode has primitives, it cannot have transformations/children, and vice versa
 struct SceneNode {
-   std::vector<ScenePrimitive*> primitives;
-
    std::vector<SceneTransformation*> transformations; // Note the order of transformations described in lab 5
+   std::vector<ScenePrimitive*>      primitives;
    std::vector<SceneNode*>           children;
 };
 
