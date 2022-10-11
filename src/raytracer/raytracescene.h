@@ -2,10 +2,7 @@
 
 #include "utils/scenedata.h"
 #include "utils/sceneparser.h"
-
-// A forward declaration for the camera class
-
-class Camera;
+#include "camera/camera.h"
 
 // A class representing a scene to be ray-traced
 
