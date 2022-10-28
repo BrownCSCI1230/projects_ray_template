@@ -1,3 +1,3 @@
-# Project 3: Intersect
+# Projects 3 & 4: Intersect & Illuminate
 
-Welcome to Project 3! The handout for the project is located [here](https://browncsci1230.github.io/projects/ray/1).
+All project handouts can be found [here](https://browncsci1230.github.io/projects).
