@@ -26,21 +26,21 @@ add_definitions(-DGLM_FORCE_SWIZZLE)
 
 # Specifies .cpp and .h files to be passed to the compiler
 add_executable(${PROJECT_NAME}
-  ./src/main.cpp
+  src/main.cpp
   
-  ./src/camera/camera.cpp
-  ./src/raytracer/raytracer.cpp
-  ./src/raytracer/raytracescene.cpp
-  ./src/utils/scenefilereader.cpp
-  ./src/utils/sceneparser.cpp
+  src/camera/camera.cpp
+  src/raytracer/raytracer.cpp
+  src/raytracer/raytracescene.cpp
+  src/utils/scenefilereader.cpp
+  src/utils/sceneparser.cpp
 
-  ./src/camera/camera.h
-  ./src/raytracer/raytracer.h
-  ./src/raytracer/raytracescene.h
-  ./src/utils/rgba.h
-  ./src/utils/scenedata.h
-  ./src/utils/scenefilereader.h
-  ./src/utils/sceneparser.h
+  src/camera/camera.h
+  src/raytracer/raytracer.h
+  src/raytracer/raytracescene.h
+  src/utils/rgba.h
+  src/utils/scenedata.h
+  src/utils/scenefilereader.h
+  src/utils/sceneparser.h
 )
 
 # GLM: this creates its library and allows you to `#include "glm/..."`
