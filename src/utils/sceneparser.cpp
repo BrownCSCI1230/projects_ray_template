@@ -12,7 +12,7 @@ bool SceneParser::parse(std::string filepath, RenderData &renderData) {
         return false;
     }
 
-    // TODO: Use your Lab 5 code to traverse the scene graph here
+    // TODO: Use your Lab 5 code here
 
     return true;
 }
