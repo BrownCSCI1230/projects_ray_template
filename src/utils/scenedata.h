@@ -10,7 +10,6 @@ enum class LightType {
     LIGHT_POINT,
     LIGHT_DIRECTIONAL,
     LIGHT_SPOT,
-    LIGHT_AREA // No longer supported
 };
 
 // Enum of the types of primitives that might be in the scene
@@ -18,7 +17,6 @@ enum class PrimitiveType {
     PRIMITIVE_CUBE,
     PRIMITIVE_CONE,
     PRIMITIVE_CYLINDER,
-    PRIMITIVE_TORUS,
     PRIMITIVE_SPHERE,
     PRIMITIVE_MESH
 };
@@ -43,15 +41,13 @@ struct SceneGlobalData  {
     float kt; // Transparency; used for extra credit (refraction)
 };
 
-// Struct which contains data for a single light
-struct SceneLightData {
+// Struct which contains raw parsed data fro a single light
+struct SceneLight {
     int id;
     LightType type;
 
     SceneColor color;
     glm::vec3 function;  // Attenuation function
-
-    glm::vec4 pos;       // Not applicable to directional lights
     glm::vec4 dir;       // Not applicable to point lights
 
     float penumbra;      // Only applicable to spot lights, in RADIANS
@@ -59,6 +55,24 @@ struct SceneLightData {
 
     float width, height; // No longer supported (area lights)
 };
+
+// Struct which contains data for a single light with CTM applied
+struct SceneLightData {
+    int id;
+    LightType type;
+
+    SceneColor color;
+    glm::vec3 function;  // Attenuation function
+
+    glm::vec4 pos;       // Position with CTM applied (Not applicable to directional lights)
+    glm::vec4 dir;       // Direction with CTM applied (Not applicable to point lights)
+
+    float penumbra;      // Only applicable to spot lights, in RADIANS
+    float angle;         // Only applicable to spot lights, in RADIANS
+
+    float width, height; // No longer supported (area lights)
+};
+
 
 // Struct which contains data for the camera of a scene
 struct SceneCameraData {
@@ -149,6 +163,7 @@ struct SceneTransformation {
 struct SceneNode {
    std::vector<SceneTransformation*> transformations; // Note the order of transformations described in lab 5
    std::vector<ScenePrimitive*>      primitives;
+   std::vector<SceneLight*>          lights;
    std::vector<SceneNode*>           children;
 };
 

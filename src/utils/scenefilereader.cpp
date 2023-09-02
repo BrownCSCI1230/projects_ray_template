@@ -9,6 +9,7 @@
 #include <filesystem>
 
 #include <QFile>
+#include <QJsonArray>
 
 #define ERROR_AT(e) "error at line " << e.lineNumber() << " col " << e.columnNumber() << ": "
 #define PARSE_ERROR(e) std::cout << ERROR_AT(e) << "could not parse <" << e.tagName().toStdString() \
@@ -24,18 +25,17 @@ ScenefileReader::ScenefileReader(const std::string& name)
 
    memset(&m_cameraData, 0, sizeof(SceneCameraData));
    memset(&m_globalData, 0, sizeof(SceneGlobalData));
-   m_objects.clear();
-   m_lights.clear();
+
+   m_root = new SceneNode;
+
+   m_templates.clear();
    m_nodes.clear();
+
+   m_nodes.push_back(m_root);
 }
 
 ScenefileReader::~ScenefileReader()
 {
-   std::vector<SceneLightData*>::iterator lights;
-   for (lights = m_lights.begin(); lights != m_lights.end(); lights++) {
-       delete *lights;
-   }
-
    // Delete all Scene Nodes
    for (unsigned int node = 0; node < m_nodes.size(); node++) {
        for (size_t i = 0; i < (m_nodes[node])->transformations.size(); i++) {
@@ -51,8 +51,7 @@ ScenefileReader::~ScenefileReader()
    }
 
    m_nodes.clear();
-   m_lights.clear();
-   m_objects.clear();
+   m_templates.clear();
 }
 
 SceneGlobalData ScenefileReader::getGlobalData() const {
@@ -63,25 +62,13 @@ SceneCameraData ScenefileReader::getCameraData() const {
    return m_cameraData;
 }
 
-std::vector<SceneLightData> ScenefileReader::getLights() const {
-   std::vector<SceneLightData> ret{};
-   ret.reserve(m_lights.size());
-
-   for (auto light : m_lights) {
-       ret.emplace_back(*light);
-   }
-   return ret;
-}
 
 SceneNode* ScenefileReader::getRootNode() const {
-   std::map<std::string, SceneNode*>::iterator node = m_objects.find("root");
-   if (node == m_objects.end())
-       return nullptr;
-   return m_objects["root"];
+   return m_root;
 }
 
 // This is where it all goes down...
-bool ScenefileReader::readXML() {
+bool ScenefileReader::readJSON() {
    // Read the file
    QFile file(file_name.c_str());
    if (!file.open(QFile::ReadOnly)) {
@@ -89,589 +76,749 @@ bool ScenefileReader::readXML() {
        return false;
    }
 
-   // Load the XML document
-   QDomDocument doc;
-   QString errorMessage;
-   int errorLine, errorColumn;
-   if (!doc.setContent(&file, &errorMessage, &errorLine, &errorColumn)) {
-       std::cout << "parse error at line " << errorLine << " col " << errorColumn << ": "
-            << errorMessage.toStdString() << std::endl;
-       return false;
+   // Load the JSON document
+   QByteArray fileContents = file.readAll();
+   QJsonParseError jsonError;
+   QJsonDocument doc = QJsonDocument::fromJson(fileContents, &jsonError);
+   if (doc.isNull()) {
+      std::cout << "could not parse " << file_name << std::endl;
+         std::cout << "parse error at line " << jsonError.offset << ": "
+                  << jsonError.errorString().toStdString() << std::endl;
+         return false;
    }
    file.close();
 
-   // Get the root element
-   QDomElement scenefile = doc.documentElement();
-   if (scenefile.tagName() != "scenefile") {
-       std::cout << "missing <scenefile>" << std::endl;
-       return false;
+   if (!doc.isObject()) {
+      std::cout << "document is not an object" << std::endl;
+      return false;
    }
 
-   // Default camera
-   m_cameraData.pos = glm::vec4(5.f, 5.f, 5.f, 1.f);
-   m_cameraData.up = glm::vec4(0.f, 1.f, 0.f, 0.f);
-   m_cameraData.look = glm::vec4(-1.f, -1.f, -1.f, 0.f);
-   m_cameraData.heightAngle = 45 * M_PI / 180.f;
+   // Get the root element
+   QJsonObject scenefile = doc.object();
 
-   // Default global data
-   m_globalData.ka = 0.5f;
-   m_globalData.kd = 0.5f;
-   m_globalData.ks = 0.5f;
+   if (!scenefile.contains("globalData")) {
+      std::cout << "missing required field \"globalData\" on root object" << std::endl;
+      return false;
+   }
+   if (!scenefile.contains("cameraData")) {
+      std::cout << "missing required field \"cameraData\" on root object" << std::endl;
+      return false;
+   }
 
-   // Iterate over child elements
-   QDomNode childNode = scenefile.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "globaldata") {
-           if (!parseGlobalData(e))
-               return false;
-       } else if (e.tagName() == "lightdata") {
-           if (!parseLightData(e))
-               return false;
-       } else if (e.tagName() == "cameradata") {
-           if (!parseCameraData(e))
-               return false;
-       } else if (e.tagName() == "object") {
-           if (!parseObjectData(e))
-               return false;
-       } else if (!e.isNull()) {
-           UNSUPPORTED_ELEMENT(e);
+   QStringList requiredFields = {"globalData", "cameraData"};
+   QStringList optionalFields = {"name", "groups", "templateGroups"};
+   // If other fields are present, raise an error
+   QStringList allFields = requiredFields + optionalFields;
+   for (auto& field : scenefile.keys()) {
+      if (!allFields.contains(field)) {
+         std::cout << "unknown field \"" << field.toStdString() << "\" on root object" << std::endl;
+         return false;
+      }
+   } 
+
+   // Parse the global data
+   if (!parseGlobalData(scenefile["globalData"].toObject())) {
+      std::cout << "could not parse \"globalData\"" << std::endl;
+      return false;
+   }
+
+   // Parse the camera data
+   if (!parseCameraData(scenefile["cameraData"].toObject())) {
+      std::cout << "could not parse \"cameraData\"" << std::endl;
+      return false;
+   }
+
+   // Parse the template groups
+   if (scenefile.contains("templateGroups")) {
+       if (!parseTemplateGroups(scenefile["templateGroups"])) {
            return false;
        }
-       childNode = childNode.nextSibling();
+   }
+
+   // Parse the groups
+   if (scenefile.contains("groups")) {
+       if (!parseGroups(scenefile["groups"], m_root)) {
+               return false;
+        }
    }
 
    std::cout << "Finished reading " << file_name << std::endl;
    return true;
 }
 
-/**
-* Helper function to parse a single value, the name of which is stored in
-* name.  For example, to parse <length v="0"/>, name would need to be "v".
-*/
-bool parseInt(const QDomElement &single, int &a, const char *name) {
-   if (!single.hasAttribute(name))
-       return false;
-   a = single.attribute(name).toInt();
-   return true;
-}
 
 /**
-* Helper function to parse a single value, the name of which is stored in
-* name.  For example, to parse <length v="0"/>, name would need to be "v".
+* Parse a globalData field and fill in m_globalData.
 */
-template <typename T> bool parseSingle(const QDomElement &single, T &a, const QString &str) {
-   if (!single.hasAttribute(str))
-       return false;
-   a = single.attribute(str).toDouble();
-   return true;
-}
-
-/**
-* Helper function to parse a triple.  Each attribute is assumed to take a
-* letter, which are stored in chars in order.  For example, to parse
-* <pos x="0" y="0" z="0"/>, chars would need to be "xyz".
-*/
-template <typename T> bool parseTriple(
-       const QDomElement &triple,
-       T &a,
-       T &b,
-       T &c,
-       const QString &str_a,
-       const QString &str_b,
-       const QString &str_c) {
-   if (!triple.hasAttribute(str_a) ||
-       !triple.hasAttribute(str_b) ||
-       !triple.hasAttribute(str_c))
-       return false;
-   a = triple.attribute(str_a).toDouble();
-   b = triple.attribute(str_b).toDouble();
-   c = triple.attribute(str_c).toDouble();
-   return true;
-}
-
-/**
-* Helper function to parse a quadruple.  Each attribute is assumed to take a
-* letter, which are stored in chars in order.  For example, to parse
-* <color r="0" g="0" b="0" a="0"/>, chars would need to be "rgba".
-*/
-template <typename T> bool parseQuadruple(
-       const QDomElement &quadruple,
-       T &a,
-       T &b,
-       T &c,
-       T &d,
-       const QString &str_a,
-       const QString &str_b,
-       const QString &str_c,
-       const QString &str_d) {
-   if (!quadruple.hasAttribute(str_a) ||
-       !quadruple.hasAttribute(str_b) ||
-       !quadruple.hasAttribute(str_c) ||
-       !quadruple.hasAttribute(str_d))
-       return false;
-   a = quadruple.attribute(str_a).toDouble();
-   b = quadruple.attribute(str_b).toDouble();
-   c = quadruple.attribute(str_c).toDouble();
-   d = quadruple.attribute(str_d).toDouble();
-   return true;
-}
-
-/**
-* Helper function to parse a matrix. Assumes the input matrix is row-major, which is converted to
-* a column-major glm matrix.
-*
-* Example matrix:
-*
-* <matrix>
-*   <row a="1" b="0" c="0" d="0"/>
-*   <row a="0" b="1" c="0" d="0"/>
-*   <row a="0" b="0" c="1" d="0"/>
-*   <row a="0" b="0" c="0" d="1"/>
-* </matrix>
-*/
-bool parseMatrix(const QDomElement &matrix, glm::mat4 &m) {
-   float *valuePtr = glm::value_ptr(m);
-   QDomNode childNode = matrix.firstChild();
-   int col = 0;
-
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.isElement()) {
-           float a, b, c, d;
-           if (!parseQuadruple(e, a, b, c, d, "a", "b", "c", "d")
-                   && !parseQuadruple(e, a, b, c, d, "v1", "v2", "v3", "v4")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           valuePtr[0*4 + col] = a;
-           valuePtr[1*4 + col] = b;
-           valuePtr[2*4 + col] = c;
-           valuePtr[3*4 + col] = d;
-           if (++col == 4) break;
-       }
-       childNode = childNode.nextSibling();
+bool ScenefileReader::parseGlobalData(const QJsonObject &globalData) {
+   QStringList requiredFields = {"ambientCoeff", "diffuseCoeff", "specularCoeff"};
+   QStringList optionalFields = {"transparentCoeff"};
+   QStringList allFields = requiredFields + optionalFields;
+   for (auto field : globalData.keys()) {
+      if (!allFields.contains(field)) {
+         std::cout << "unknown field \"" << field.toStdString() << "\" on globalData object" << std::endl;
+         return false;
+      }
    }
-
-   return (col == 4);
-}
-
-/**
-* Helper function to parse a color.  Will parse an element with r, g, b, and
-* a attributes (the a attribute is optional and defaults to 1).
-*/
-bool parseColor(const QDomElement &color, SceneColor &c) {
-   c.a = 1;
-   return parseQuadruple(color, c.r, c.g, c.b, c.a, "r", "g", "b", "a") ||
-          parseQuadruple(color, c.r, c.g, c.b, c.a, "x", "y", "z", "w") ||
-          parseTriple(color, c.r, c.g, c.b, "r", "g", "b") ||
-          parseTriple(color, c.r, c.g, c.b, "x", "y", "z");
-}
-
-/**
-* Helper function to parse a texture map tag. The texture map image should be relative to the root directory of
-* scenefile root. Example texture map tag:
-* <texture file="/image/andyVanDam.jpg" u="1" v="1"/>
-*/
-bool parseMap(const QDomElement &e, SceneFileMap &map, const std::filesystem::path &basepath) {
-   if (!e.hasAttribute("file"))
-       return false;
-
-   std::filesystem::path fileRelativePath(e.attribute("file").toStdString());
-
-   map.filename = (basepath / fileRelativePath).string();
-   map.repeatU = e.hasAttribute("u") ? e.attribute("u").toFloat() : 1;
-   map.repeatV = e.hasAttribute("v") ? e.attribute("v").toFloat() : 1;
-   map.isUsed = true;
-   return true;
-}
-
-/**
-* Parse a <globaldata> tag and fill in m_globalData.
-*/
-bool ScenefileReader::parseGlobalData(const QDomElement &globaldata) {
-   // Iterate over child elements
-   QDomNode childNode = globaldata.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "ambientcoeff") {
-           if (!parseSingle(e, m_globalData.ka, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "diffusecoeff") {
-           if (!parseSingle(e, m_globalData.kd, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "specularcoeff") {
-           if (!parseSingle(e, m_globalData.ks, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "transparentcoeff") {
-           if (!parseSingle(e, m_globalData.kt, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       }
-       childNode = childNode.nextSibling();
+   for (auto field : requiredFields) {
+      if (!globalData.contains(field)) {
+         std::cout << "missing required field \"" << field.toStdString() << "\" on globalData object" << std::endl;
+         return false;
+      }
+   }
+   // Parse the global data
+   if (globalData["ambientCoeff"].isDouble()) {
+      m_globalData.ka = globalData["ambientCoeff"].toDouble();
+   } else {
+      std::cout << "globalData ambientCoeff must be a floating-point value" << std::endl;
+      return false;
+   }
+   if (globalData["diffuseCoeff"].isDouble()) {
+      m_globalData.kd = globalData["diffuseCoeff"].toDouble();
+   } else {
+      std::cout << "globalData diffuseCoeff must be a floating-point value" << std::endl;
+      return false;
+   }
+   if (globalData["specularCoeff"].isDouble()) {
+      m_globalData.ks = globalData["specularCoeff"].toDouble();
+   } else {
+      std::cout << "globalData specularCoeff must be a floating-point value" << std::endl;
+      return false;
+   }
+   if (globalData.contains("transparentCoeff")) {
+      if (globalData["transparentCoeff"].isDouble()) {
+         m_globalData.kt = globalData["transparentCoeff"].toDouble();
+      } else {
+         std::cout << "globalData transparentCoeff must be a floating-point value" << std::endl;
+         return false;
+      }
    }
 
    return true;
 }
 
 /**
-* Parse a <lightdata> tag and add a new CS123SceneLightData to m_lights.
+* Parse a Light and add a new CS123SceneLightData to m_lights.
 */
-bool ScenefileReader::parseLightData(const QDomElement &lightdata) {
+bool ScenefileReader::parseLightData(const QJsonObject &lightData, SceneNode* node) {
+   QStringList requiredFields = { "type", "color" };
+   QStringList optionalFields = {"name", "attenuationCoeff", "direction", "penumbra", "angle" };
+   QStringList allFields = requiredFields + optionalFields;
+   for (auto& field : lightData.keys()) {
+      if (!allFields.contains(field)) {
+         std::cout << "unknown field \"" << field.toStdString() << "\" on light object" << std::endl;
+         return false;
+      }
+   }
+   for (auto& field : requiredFields) {
+      if (!lightData.contains(field)) {
+         std::cout << "missing required field \"" << field.toStdString() << "\" on light object" << std::endl;
+         return false;
+      }
+   }
+
    // Create a default light
-   SceneLightData* light = new SceneLightData();
-   m_lights.push_back(light);
-   memset(light, 0, sizeof(SceneLightData));
-   light->pos = glm::vec4(3.f, 3.f, 3.f, 1.f);
+   SceneLight* light = new SceneLight();
+   memset(light, 0, sizeof(SceneLight));
+   node->lights.push_back(light);
+
    light->dir = glm::vec4(0.f, 0.f, 0.f, 0.f);
-   light->color.r = light->color.g = light->color.b = 1;
    light->function = glm::vec3(1, 0, 0);
 
-   // Iterate over child elements
-   QDomNode childNode = lightdata.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "id") {
-           if (!parseInt(e, light->id, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "type") {
-           if (!e.hasAttribute("v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           if (e.attribute("v") == "directional") light->type = LightType::LIGHT_DIRECTIONAL;
-           else if (e.attribute("v") == "point") light->type = LightType::LIGHT_POINT;
-           else if (e.attribute("v") == "spot") light->type = LightType::LIGHT_SPOT;
-           else if (e.attribute("v") == "area") light->type = LightType::LIGHT_AREA;
-           else {
-               std::cout << ERROR_AT(e) << "unknown light type " << e.attribute("v").toStdString() << std::endl;
-               return false;
-           }
-       } else if (e.tagName() == "color") {
-           if (!parseColor(e, light->color)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "function") {
-           if (!parseTriple(e, light->function.x, light->function.y, light->function.z, "a", "b", "c") &&
-               !parseTriple(e, light->function.x, light->function.y, light->function.z, "x", "y", "z") &&
-               !parseTriple(e, light->function.x, light->function.y, light->function.z, "v1", "v2", "v3")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "position") {
-           if (light->type == LightType::LIGHT_DIRECTIONAL) {
-               std::cout << ERROR_AT(e) << "position is not applicable to directional lights" << std::endl;
-               return false;
-           }
-           if (!parseTriple(e, light->pos.x, light->pos.y, light->pos.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "direction") {
-           if (light->type == LightType::LIGHT_POINT) {
-               std::cout << ERROR_AT(e) << "direction is not applicable to point lights" << std::endl;
-               return false;
-           }
-           if (!parseTriple(e, light->dir.x, light->dir.y, light->dir.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "penumbra") {
-           if (light->type != LightType::LIGHT_SPOT) {
-               std::cout << ERROR_AT(e) << "penumbra is only applicable to spot lights" << std::endl;
-               return false;
-           }
-           float penumbra = 0.f;
-           if (!parseSingle(e, penumbra, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
+   // parse the color
+   if (!lightData["color"].isArray()) {
+       std::cout << "light color must be of type array" << std::endl;
+       return false;
+   }
+   QJsonArray colorArray = lightData["color"].toArray();
+   if (colorArray.size() != 3) {
+       std::cout << "light color must be of size 3" << std::endl;
+       return false;
+   }
+   if (!colorArray[0].isDouble() || !colorArray[1].isDouble() || !colorArray[2].isDouble()) {
+       std::cout << "light color must contain floating-point values" << std::endl;
+       return false;
+   }
+   light->color.r = colorArray[0].toDouble();
+   light->color.g = colorArray[1].toDouble();
+   light->color.b = colorArray[2].toDouble();
 
-           light->penumbra = penumbra * M_PI / 180.f;
-       } else if (e.tagName() == "angle") {
-           if (light->type != LightType::LIGHT_SPOT) {
-               std::cout << ERROR_AT(e) << "angle is only applicable to spot lights" << std::endl;
-               return false;
-           }
 
-           float angle = 0.f;
-           if (!parseSingle(e, angle, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           light->angle = angle * M_PI / 180.f;
-       } else if (e.tagName() == "width") {
-           if (light->type != LightType::LIGHT_AREA) {
-               std::cout << ERROR_AT(e) << "width is only applicable to area lights" << std::endl;
-               return false;
-           }
-           if (!parseSingle(e, light->width, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "height") {
-           if (light->type != LightType::LIGHT_AREA) {
-               std::cout << ERROR_AT(e) << "height is only applicable to area lights" << std::endl;
-               return false;
-           }
-           if (!parseSingle(e, light->height, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (!e.isNull()) {
-           UNSUPPORTED_ELEMENT(e);
+   // parse the type
+   if (!lightData["type"].isString()) {
+       std::cout << "light type must be of type string" << std::endl;
+       return false;
+   }
+   std::string lightType = lightData["type"].toString().toStdString();
+
+   // parse directional light
+   if (lightType == "directional") {
+       light->type = LightType::LIGHT_DIRECTIONAL;
+
+       // parse direction
+       if (!lightData.contains("direction")) {
+           std::cout << "directional light must contain field \"direction\"" << std::endl;
            return false;
        }
-       childNode = childNode.nextSibling();
+       if (!lightData["direction"].isArray()) {
+           std::cout << "directional light direction must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray directionArray = lightData["direction"].toArray();
+       if (directionArray.size() != 3) {
+           std::cout << "directional light direction must be of size 3" << std::endl;
+           return false;
+       }
+       if (!directionArray[0].isDouble() || !directionArray[1].isDouble() || !directionArray[2].isDouble()) {
+           std::cout << "directional light direction must contain floating-point values" << std::endl;
+           return false;
+       }
+       light->dir.x = directionArray[0].toDouble();
+       light->dir.y = directionArray[1].toDouble();
+       light->dir.z = directionArray[2].toDouble();
+   } else if (lightType == "point") {
+       light->type = LightType::LIGHT_POINT;
+
+       // parse the attenuation coefficient
+       if (!lightData.contains("attenuationCoeff")) {
+           std::cout << "point light must contain field \"attenuationCoeff\"" << std::endl;
+           return false;
+       }
+       if (!lightData["attenuationCoeff"].isArray()) {
+           std::cout << "point light attenuationCoeff must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray attenuationArray = lightData["attenuationCoeff"].toArray();
+       if (attenuationArray.size() != 3) {
+           std::cout << "point light attenuationCoeff must be of size 3" << std::endl;
+           return false;
+       }
+       if (!attenuationArray[0].isDouble() || !attenuationArray[1].isDouble() || !attenuationArray[2].isDouble()) {
+           std::cout << "ppoint light attenuationCoeff must contain floating-point values" << std::endl;
+           return false;
+       }
+       light->function.x = attenuationArray[0].toDouble();
+       light->function.y = attenuationArray[1].toDouble();
+       light->function.z = attenuationArray[2].toDouble();
+   } else if (lightType == "spot") {
+       QStringList pointRequiredFields = { "direction", "penumbra", "angle", "attenuationCoeff" };
+       for (auto& field: pointRequiredFields) {
+           if (!lightData.contains(field)) {
+                std::cout << "missing required field \"" << field.toStdString() << "\" on spotlight object" << std::endl;
+                return false;
+           }
+       }
+       light->type = LightType::LIGHT_SPOT;
+
+       // parse direction
+       if (!lightData["direction"].isArray()) {
+           std::cout << "spotlight direction must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray directionArray = lightData["direction"].toArray();
+       if (directionArray.size() != 3) {
+           std::cout << "spotlight direction must be of size 3" << std::endl;
+           return false;
+       }
+       if (!directionArray[0].isDouble() || !directionArray[1].isDouble() || !directionArray[2].isDouble()) {
+           std::cout << "spotlight direction must contain floating-point values" << std::endl;
+           return false;
+       }
+       light->dir.x = directionArray[0].toDouble();
+       light->dir.y = directionArray[1].toDouble();
+       light->dir.z = directionArray[2].toDouble();
+
+       // parse attenuation coefficient
+       if (!lightData["attenuationCoeff"].isArray()) {
+           std::cout << "spotlight attenuationCoeff must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray attenuationArray = lightData["attenuationCoeff"].toArray();
+       if (attenuationArray.size() != 3) {
+           std::cout << "spotlight attenuationCoeff must be of size 3" << std::endl;
+           return false;
+       }
+       if (!attenuationArray[0].isDouble() || !attenuationArray[1].isDouble() || !attenuationArray[2].isDouble()) {
+           std::cout << "spotlight direction must contain floating-point values" << std::endl;
+           return false;
+       }
+       light->function.x = attenuationArray[0].toDouble();
+       light->function.y = attenuationArray[1].toDouble();
+       light->function.z = attenuationArray[2].toDouble();
+
+       // parse penumbra
+       if (!lightData["penumbra"].isDouble()) {
+           std::cout << "spotlight penumbra must be of type float" << std::endl;
+           return false;
+       }
+       light->penumbra = lightData["penumbra"].toDouble() * M_PI / 180.f;
+
+       // parse angle
+       if (!lightData["angle"].isDouble()) {
+           std::cout << "spotlight angle must be of type float" << std::endl;
+           return false;
+       }
+       light->angle = lightData["angle"].toDouble() * M_PI / 180.f;
+   } else {
+       std::cout << "unknown light type \"" << lightType << "\"" << std::endl;
+       return false;
    }
 
    return true;
 }
 
 /**
-* Parse a <cameradata> tag and fill in m_cameraData.
+* Parse cameraData and fill in m_cameraData.
 */
-bool ScenefileReader::parseCameraData(const QDomElement &cameradata) {
-   bool focusFound = false;
-   bool lookFound = false;
+bool ScenefileReader::parseCameraData(const QJsonObject &cameradata) {
+   QStringList requiredFields = {"position", "up", "heightAngle"};
+   QStringList optionalFields = {"aperture", "focalLength", "look", "focus"};
+   QStringList allFields = requiredFields + optionalFields;
+   for (auto& field : cameradata.keys()) {
+      if (!allFields.contains(field)) {
+         std::cout << "unknown field \"" << field.toStdString() << "\" on cameraData object" << std::endl;
+         return false;
+      }
+   }
+    for (auto& field : requiredFields) {
+        if (!cameradata.contains(field)) {
+            std::cout << "missing required field \"" << field.toStdString() << "\" on cameraData object" << std::endl;
+            return false;
+        }
+    }
 
-   // Iterate over child elements
-   QDomNode childNode = cameradata.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "pos") {
-           if (!parseTriple(e, m_cameraData.pos.x, m_cameraData.pos.y, m_cameraData.pos.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           m_cameraData.pos.w = 1;
-       } else if (e.tagName() == "look" || e.tagName() == "focus") {
-           if (!parseTriple(e, m_cameraData.look.x, m_cameraData.look.y, m_cameraData.look.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-
-           if (e.tagName() == "focus") {
-               // Store the focus point in the look vector (we will later subtract
-               // the camera position from this to get the actual look vector)
-               m_cameraData.look.w = 1;
-               focusFound = true;
-           } else {
-               // Just store the look vector
-               m_cameraData.look.w = 0;
-               lookFound = true;
-           }
-       } else if (e.tagName() == "up") {
-           if (!parseTriple(e, m_cameraData.up.x, m_cameraData.up.y, m_cameraData.up.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           m_cameraData.up.w = 0;
-       } else if (e.tagName() == "heightangle") {
-           float heightAngle = 0.f;
-           if (!parseSingle(e, heightAngle, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           m_cameraData.heightAngle = heightAngle * M_PI / 180.f;
-       } else if (e.tagName() == "aperture") {
-           if (!parseSingle(e, m_cameraData.aperture, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "focallength") {
-           if (!parseSingle(e, m_cameraData.focalLength, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (!e.isNull()) {
-           UNSUPPORTED_ELEMENT(e);
-           return false;
-       }
-       childNode = childNode.nextSibling();
+   // Must have either look or focus, but not both
+   if (cameradata.contains("look") && cameradata.contains("focus")) {
+      std::cout << "cameraData cannot contain both \"look\" and \"focus\"" << std::endl;
+      return false;
    }
 
-   if (focusFound && lookFound) {
-       std::cout << ERROR_AT(cameradata) << "camera can not have both look and focus" << std::endl;
-       return false;
+   // Parse the camera data
+   if (cameradata["position"].isArray()) {
+      QJsonArray position = cameradata["position"].toArray();
+      if (position.size() != 3) {
+         std::cout << "cameraData position must have 3 elements" << std::endl;
+         return false;
+      }
+      if (!position[0].isDouble() || !position[1].isDouble() || !position[2].isDouble()) {
+         std::cout << "cameraData position must be a floating-point value" << std::endl;
+         return false;
+      }
+      m_cameraData.pos.x = position[0].toDouble();
+      m_cameraData.pos.y = position[1].toDouble();
+      m_cameraData.pos.z = position[2].toDouble();
+   } else {
+      std::cout << "cameraData position must be an array" << std::endl;
+      return false;
    }
 
-   if (focusFound) {
-       // Convert the focus point (stored in the look vector) into a
-       // look vector from the camera position to that focus point.
-       m_cameraData.look -= m_cameraData.pos;
+   if (cameradata["up"].isArray()) {
+      QJsonArray up = cameradata["up"].toArray();
+      if (up.size() != 3) {
+         std::cout << "cameraData up must have 3 elements" << std::endl;
+         return false;
+      }
+      if (!up[0].isDouble() || !up[1].isDouble() || !up[2].isDouble()) {
+         std::cout << "cameraData up must be a floating-point value" << std::endl;
+         return false;
+      }
+      m_cameraData.up.x = up[0].toDouble();
+      m_cameraData.up.y = up[1].toDouble();
+      m_cameraData.up.z = up[2].toDouble();
+   } else {
+      std::cout << "cameraData up must be an array" << std::endl;
+      return false;
    }
+
+    if (cameradata["heightAngle"].isDouble()) {
+        m_cameraData.heightAngle = cameradata["heightAngle"].toDouble() * M_PI / 180.f;
+    } else {
+        std::cout << "cameraData heightAngle must be a floating-point value" << std::endl;
+        return false;
+    }
+
+    if (cameradata.contains("aperture")) {
+        if (cameradata["aperture"].isDouble()) {
+            m_cameraData.aperture = cameradata["aperture"].toDouble();
+        } else {
+            std::cout << "cameraData aperture must be a floating-point value" << std::endl;
+            return false;
+        }
+    }
+
+    if (cameradata.contains("focalLength")) {
+        if (cameradata["focalLength"].isDouble()) {
+            m_cameraData.focalLength = cameradata["focalLength"].toDouble();
+        } else {
+            std::cout << "cameraData focalLength must be a floating-point value" << std::endl;
+            return false;
+        }
+    }
+
+    // Parse the look or focus
+    // if the focus is specified, we will convert it to a look vector later
+    if (cameradata.contains("look")) {
+        if (cameradata["look"].isArray()) {
+            QJsonArray look = cameradata["look"].toArray();
+            if (look.size() != 3) {
+                std::cout << "cameraData look must have 3 elements" << std::endl;
+                return false;
+            }
+            if (!look[0].isDouble() || !look[1].isDouble() || !look[2].isDouble()) {
+                std::cout << "cameraData look must be a floating-point value" << std::endl;
+                return false;
+            }
+            m_cameraData.look.x = look[0].toDouble();
+            m_cameraData.look.y = look[1].toDouble();
+            m_cameraData.look.z = look[2].toDouble();
+        } else {
+            std::cout << "cameraData look must be an array" << std::endl;
+            return false;
+        }
+    } else if (cameradata.contains("focus")) {
+        if (cameradata["focus"].isArray()) {
+            QJsonArray focus = cameradata["focus"].toArray();
+            if (focus.size() != 3) {
+                std::cout << "cameraData focus must have 3 elements" << std::endl;
+                return false;
+            }
+            if (!focus[0].isDouble() || !focus[1].isDouble() || !focus[2].isDouble()) {
+                std::cout << "cameraData focus must be a floating-point value" << std::endl;
+                return false;
+            }
+            m_cameraData.look.x = focus[0].toDouble();
+            m_cameraData.look.y = focus[1].toDouble();
+            m_cameraData.look.z = focus[2].toDouble();
+        } else {
+            std::cout << "cameraData focus must be an array" << std::endl;
+            return false;
+        }
+    }
+
+    // Convert the focus point (stored in the look vector) into a
+    // look vector from the camera position to that focus point.
+    if (cameradata.contains("focus")) {
+        m_cameraData.look -= m_cameraData.pos;
+    }
 
    return true;
 }
 
-/**
-* Parse an <object> tag and create a new CS123SceneNode in m_nodes.
-*/
-bool ScenefileReader::parseObjectData(const QDomElement &object) {
-   if (!object.hasAttribute("name")) {
-       PARSE_ERROR(object);
-       return false;
-   }
+bool ScenefileReader::parseTemplateGroups(const QJsonValue &templateGroups) {
+    if (!templateGroups.isArray()) {
+        std::cout << "templateGroups must be an array" << std::endl;
+        return false;
+    }
 
-   if (object.attribute("type") != "tree") {
-       std::cout << "top-level <object> elements must be of type tree" << std::endl;
-       return false;
-   }
+    QJsonArray templateGroupsArray = templateGroups.toArray();
+    for (auto templateGroup: templateGroupsArray) {
+        if (!templateGroup.isObject()) {
+            std::cout << "templateGroup items must be of type object" << std::endl;
+            return false;
+        }
 
-   std::string name = object.attribute("name").toStdString();
+        if (!parseTemplateGroupData(templateGroup.toObject())) {
+            return false;
+        }
+    }
 
-   // Check that this object does not exist
-   if (m_objects[name]) {
-       std::cout << ERROR_AT(object) << "two objects with the same name: " << name << std::endl;
-       return false;
-   }
-
-   // Create the object and add to the map
-   SceneNode *node = new SceneNode;
-   m_nodes.push_back(node);
-   m_objects[name] = node;
-
-   // Iterate over child elements
-   QDomNode childNode = object.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "transblock") {
-           SceneNode *child = new SceneNode;
-           m_nodes.push_back(child);
-           if (!parseTransBlock(e, child)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-           node->children.push_back(child);
-       } else if (!e.isNull()) {
-           UNSUPPORTED_ELEMENT(e);
-           return false;
-       }
-       childNode = childNode.nextSibling();
-   }
-
-   return true;
+    return true;
 }
 
+bool ScenefileReader::parseTemplateGroupData(const QJsonObject &templateGroup) {
+    QStringList requiredFields = { "name" };
+    QStringList optionalFields = { "translate", "rotate", "scale", "matrix", "lights", "primitives", "groups" };
+    QStringList allFields = requiredFields + optionalFields;
+    for (auto& field: templateGroup.keys()) {
+        if (!allFields.contains(field)) {
+            std::cout << "unknown field \"" << field.toStdString() << "\" on templateGroup object" << std::endl;
+            return false;
+        }
+    }
+
+    for (auto& field : requiredFields) {
+        if (!templateGroup.contains(field)) {
+            std::cout << "missing required field \"" << field.toStdString() << "\" on templateGroup object" << std::endl;
+            return false;
+        }
+    }
+
+    if (!templateGroup["name"].isString()) {
+        std::cout << "templateGroup name must be a string" << std::endl;
+    }
+    if (m_templates.contains(templateGroup["name"].toString().toStdString())) {
+        std::cout << "templateGroups cannot have the same" << std::endl;
+    }
+
+
+    SceneNode *templateNode = new SceneNode;
+    m_nodes.push_back(templateNode);
+    m_templates[templateGroup["name"].toString().toStdString()] = templateNode;
+
+    return parseGroupData(templateGroup, templateNode);
+}
+
+
 /**
-* Parse a <transblock> tag into node, which consists of any number of
-* <translate>, <rotate>, <scale>, or <matrix> elements followed by one
-* <object> element.  That <object> element is either a master reference,
-* a subtree, or a primitive.  If it's a master reference, we handle it
-* here, otherwise we will call other methods.  Example <transblock>:
-*
-* <transblock>
-*   <translate x="1" y="2" z="3"/>
-*   <rotate x="0" y="1" z="0" a="90"/>
-*   <scale x="1" y="2" z="1"/>
-*   <object type="primitive" name="sphere"/>
-* </transblock>
+* Parse a group object and create a new CS123SceneNode in m_nodes.
+* NAME IS NOT TEMPLATE NODE
 */
-bool ScenefileReader::parseTransBlock(const QDomElement &transblock, SceneNode* node) {
-   // Iterate over child elements
-   QDomNode childNode = transblock.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "translate") {
-           SceneTransformation *t = new SceneTransformation();
-           node->transformations.push_back(t);
-           t->type = TransformationType::TRANSFORMATION_TRANSLATE;
+bool ScenefileReader::parseGroupData(const QJsonObject &object, SceneNode* node) {
+   QStringList optionalFields = {"name", "translate", "rotate", "scale", "matrix", "lights", "primitives", "groups"};
+   QStringList allFields = optionalFields;
+   for (auto& field : object.keys()) {
+      if (!allFields.contains(field)) {
+         std::cout << "unknown field \"" << field.toStdString() << "\" on group object" << std::endl;
+         return false;
+      }
+   }
 
-           if (!parseTriple(e, t->translate.x, t->translate.y, t->translate.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
+   // parse translation if defined
+   if (object.contains("translate")) {
+       if (!object["translate"].isArray()) {
+           std::cout << "group translate must be of type array" << std::endl;
+           return false;
+       }
+
+       QJsonArray translateArray = object["translate"].toArray();
+       if (translateArray.size() != 3) {
+           std::cout << "group translate must have 3 elements" << std::endl;
+           return false;
+       }
+       if (!translateArray[0].isDouble() || !translateArray[1].isDouble() || !translateArray[2].isDouble()) {
+           std::cout << "group translate must contain floating-point values" << std::endl;
+           return false;
+       }
+
+       SceneTransformation *translation = new SceneTransformation();
+       translation->type = TransformationType::TRANSFORMATION_TRANSLATE;
+       translation->translate.x = translateArray[0].toDouble();
+       translation->translate.y = translateArray[1].toDouble();
+       translation->translate.z = translateArray[2].toDouble();
+
+       node->transformations.push_back(translation);
+   }
+
+   // parse rotation if defined
+   if (object.contains("rotate")) {
+       if (!object["rotate"].isArray()) {
+           std::cout << "group rotate must be of type array" << std::endl;
+           return false;
+       }
+
+       QJsonArray rotateArray = object["rotate"].toArray();
+       if (rotateArray.size() != 4) {
+           std::cout << "group rotate must have 4 elements" << std::endl;
+           return false;
+       }
+       if (!rotateArray[0].isDouble() || !rotateArray[1].isDouble() || !rotateArray[2].isDouble() || !rotateArray[3].isDouble()) {
+           std::cout << "group rotate must contain floating-point values" << std::endl;
+           return false;
+       }
+
+       SceneTransformation *rotation = new SceneTransformation();
+       rotation->type = TransformationType::TRANSFORMATION_ROTATE;
+       rotation->rotate.x = rotateArray[0].toDouble();
+       rotation->rotate.y = rotateArray[1].toDouble();
+       rotation->rotate.z = rotateArray[2].toDouble();
+       rotation->angle = rotateArray[3].toDouble() * M_PI / 180.f;
+
+       node->transformations.push_back(rotation);
+   }
+
+   // parse scale if defined
+   if (object.contains("scale")) {
+       if (!object["scale"].isArray()) {
+           std::cout << "group scale must be of type array" << std::endl;
+           return false;
+       }
+
+       QJsonArray scaleArray = object["scale"].toArray();
+       if (scaleArray.size() != 3) {
+           std::cout << "group scale must have 3 elements" << std::endl;
+           return false;
+       }
+       if (!scaleArray[0].isDouble() || !scaleArray[1].isDouble() || !scaleArray[2].isDouble()) {
+           std::cout << "group scale must contain floating-point values" << std::endl;
+           return false;
+       }
+
+       SceneTransformation *scale = new SceneTransformation();
+       scale->type = TransformationType::TRANSFORMATION_SCALE;
+       scale->scale.x = scaleArray[0].toDouble();
+       scale->scale.y = scaleArray[1].toDouble();
+       scale->scale.z = scaleArray[2].toDouble();
+
+       node->transformations.push_back(scale);
+   }
+
+   // parse matrix if defined
+   if (object.contains("matrix")) {
+       if (!object["matrix"].isArray()) {
+           std::cout << "group matrix must be of type array of array" << std::endl;
+           return false;
+       }
+
+       QJsonArray matrixArray = object["matrix"].toArray();
+       if (matrixArray.size() != 4) {
+           std::cout << "group matrix must be 4x4" << std::endl;
+           return false;
+       }
+
+       SceneTransformation *matrixTransformation= new SceneTransformation();
+       matrixTransformation->type = TransformationType::TRANSFORMATION_MATRIX;
+
+       float* matrixPtr = glm::value_ptr(matrixTransformation->matrix);
+       int rowIndex = 0;
+       for (auto row: matrixArray) {
+           if (!row.isArray()) {
+               std::cout << "group matrix must be of type array of array" << std::endl;
                return false;
            }
-       } else if (e.tagName() == "rotate") {
-           SceneTransformation *t = new SceneTransformation();
-           node->transformations.push_back(t);
-           t->type = TransformationType::TRANSFORMATION_ROTATE;
 
-           float angle;
-           if (!parseQuadruple(e, t->rotate.x, t->rotate.y, t->rotate.z, angle, "x", "y", "z", "angle")) {
-               PARSE_ERROR(e);
-               return false;
+           QJsonArray rowArray = row.toArray();
+           if (rowArray.size() != 4) {
+              std::cout << "group matrix must be 4x4" << std::endl;
+              return false;
            }
 
-           // Convert to radians
-           t->angle = angle * M_PI / 180;
-       } else if (e.tagName() == "scale") {
-           SceneTransformation *t = new SceneTransformation();
-           node->transformations.push_back(t);
-           t->type = TransformationType::TRANSFORMATION_SCALE;
-
-           if (!parseTriple(e, t->scale.x, t->scale.y, t->scale.z, "x", "y", "z")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "matrix") {
-           SceneTransformation* t = new SceneTransformation();
-           node->transformations.push_back(t);
-           t->type = TransformationType::TRANSFORMATION_MATRIX;
-
-           if (!parseMatrix(e, t->matrix)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "object") {
-           if (e.attribute("type") == "master") {
-               std::string masterName = e.attribute("name").toStdString();
-               if (!m_objects[masterName]) {
-                   std::cout << ERROR_AT(e) << "invalid master object reference: " << masterName << std::endl;
+           int colIndex = 0;
+           for (auto val: rowArray) {
+               if (!val.isDouble()) {
+                   std::cout << "group matrix must contain all floating-point values" << std::endl;
                    return false;
                }
-               node->children.push_back(m_objects[masterName]);
-           } else if (e.attribute("type") == "tree") {
-               QDomNode subNode = e.firstChild();
-               while (!subNode.isNull()) {
-                   QDomElement e = subNode.toElement();
-                   if (e.tagName() == "transblock") {
-                       SceneNode* n = new SceneNode;
-                       m_nodes.push_back(n);
-                       node->children.push_back(n);
-                       if (!parseTransBlock(e, n)) {
-                           PARSE_ERROR(e);
-                           return false;
-                       }
-                   } else if (!e.isNull()) {
-                       UNSUPPORTED_ELEMENT(e);
-                       return false;
-                   }
-                   subNode = subNode.nextSibling();
-               }
-           } else if (e.attribute("type") == "primitive") {
-               if (!parsePrimitive(e, node)) {
-                   PARSE_ERROR(e);
-                   return false;
-               }
-           } else {
-               std::cout << ERROR_AT(e) << "invalid object type: " << e.attribute("type").toStdString() << std::endl;
-               return false;
+
+               // fill in column-wise
+               matrixPtr[colIndex * 4 + rowIndex] = (float) val.toDouble();
+               colIndex++;
            }
-       } else if (!e.isNull()) {
-           UNSUPPORTED_ELEMENT(e);
+           rowIndex++;
+       }
+
+       node->transformations.push_back(matrixTransformation);
+   }
+
+   // parse lights if any
+   if (object.contains("lights")) {
+       if (!object["lights"].isArray()) {
+           std::cout << "group lights must be of type array" << std::endl;
            return false;
        }
-       childNode = childNode.nextSibling();
+       QJsonArray lightsArray = object["lights"].toArray();
+       for (auto light: lightsArray) {
+           if (!light.isObject()) {
+               std::cout << "light must be of type object" << std::endl;
+               return false;
+           }
+
+           if (!parseLightData(light.toObject(), node)) {
+               return false;
+           }
+       }
+   }
+
+   // parse primitives if any
+   if (object.contains("primitives")) {
+       if (!object["primitives"].isArray()) {
+           std::cout << "group primitives must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray primitivesArray = object["primitives"].toArray();
+       for (auto primitive: primitivesArray) {
+           if (!primitive.isObject()) {
+               std::cout << "primitive must be of type object" << std::endl;
+               return false;
+           }
+
+           if (!parsePrimitive(primitive.toObject(), node)) {
+               return false;
+           }
+       }
+   }
+
+   // parse children groups if any
+   if (object.contains("groups")) {
+       if (!parseGroups(object["groups"], node)) {
+           return false;
+       }
    }
 
    return true;
+}
+
+
+bool ScenefileReader::parseGroups(const QJsonValue &groups, SceneNode* parent) {
+    if (!groups.isArray()) {
+        std::cout << "groups must be of type array" << std::endl;
+        return false;
+    }
+
+    QJsonArray groupsArray = groups.toArray();
+    for (auto group: groupsArray) {
+       if (!group.isObject()) {
+           std::cout << "group items must be of type object" << std::endl;
+           return false;
+       }
+
+       QJsonObject groupData = group.toObject();
+       if (groupData.contains("name")) {
+           if (!groupData["name"].isString()) {
+               std::cout << "group name must be of type string" << std::endl;
+               return false;
+           }
+
+           // if its a reference to a template group append it
+           std::string groupName = groupData["name"].toString().toStdString();
+           if (m_templates.contains(groupName)) {
+               parent->children.push_back(m_templates[groupName]);
+               continue;
+           }
+       }
+
+
+       SceneNode *node = new SceneNode;
+       m_nodes.push_back(node);
+       parent->children.push_back(node);
+
+       if (!parseGroupData(group.toObject(), node)) {
+           return false;
+       }
+    }
+
+    return true;
 }
 
 /**
 * Parse an <object type="primitive"> tag into node.
 */
-bool ScenefileReader::parsePrimitive(const QDomElement &prim, SceneNode* node) {
+bool ScenefileReader::parsePrimitive(const QJsonObject &prim, SceneNode* node) {
+    QStringList requiredFields = { "type" };
+    QStringList optionalFields = {
+        "meshFile", "ambient", "diffuse", "specular", "reflective", "transparent", "shininess",
+        "blend", "textureFile", "textureU", "textureV",  "bumpMapFile", "bumpMapU", "bumpMapV"
+    };
+
+    QStringList allFields = requiredFields + optionalFields;
+    for (auto field : prim.keys()) {
+       if (!allFields.contains(field)) {
+          std::cout << "unknown field \"" << field.toStdString() << "\" on primitive object" << std::endl;
+          return false;
+       }
+    }
+    for (auto field : requiredFields) {
+       if (!prim.contains(field)) {
+          std::cout << "missing required field \"" << field.toStdString() << "\" on primitive object" << std::endl;
+          return false;
+       }
+    }
+
+    if (!prim["type"].isString()) {
+        std::cout << "primitive type must be of type string" << std::endl;
+        return false;
+    }
+    std::string primType = prim["type"].toString().toStdString();
+
    // Default primitive
    ScenePrimitive* primitive = new ScenePrimitive();
    SceneMaterial& mat = primitive->material;
@@ -683,92 +830,176 @@ bool ScenefileReader::parsePrimitive(const QDomElement &prim, SceneNode* node) {
    node->primitives.push_back(primitive);
 
    std::filesystem::path basepath = std::filesystem::path(file_name).parent_path().parent_path();
-
-   // Parse primitive type
-   std::string primType = prim.attribute("name").toStdString();
    if (primType == "sphere") primitive->type = PrimitiveType::PRIMITIVE_SPHERE;
    else if (primType == "cube") primitive->type = PrimitiveType::PRIMITIVE_CUBE;
    else if (primType == "cylinder") primitive->type = PrimitiveType::PRIMITIVE_CYLINDER;
    else if (primType == "cone") primitive->type = PrimitiveType::PRIMITIVE_CONE;
-   else if (primType == "torus") primitive->type = PrimitiveType::PRIMITIVE_TORUS;
    else if (primType == "mesh") {
        primitive->type = PrimitiveType::PRIMITIVE_MESH;
-       if (prim.hasAttribute("meshfile")) {
-           std::filesystem::path relativePath(prim.attribute("meshfile").toStdString());
-           primitive->meshfile = (basepath / relativePath).string();
-       } else if (prim.hasAttribute("filename")) {
-           std::filesystem::path relativePath(prim.attribute("filename").toStdString());
-           primitive->meshfile = (basepath / relativePath).string();
-       } else {
-           std::cout << "mesh object must specify filename" << std::endl;
+       if (!prim.contains("meshFile")) {
+           std::cout << "primitive type mesh must contain field meshFile" << std::endl;
            return false;
+       }
+       if (!prim["meshFile"].isString()) {
+            std::cout << "primitive meshFile must be of type string" << std::endl;
+            return false;
+       }
+
+       std::filesystem::path relativePath(prim["meshfile"].toString().toStdString());
+       primitive->meshfile = (basepath / relativePath).string();
+   }
+   else {
+       std::cout << "unknown primitive type \"" << primType << "\"" << std::endl;
+       return false;
+   }
+
+   if (prim.contains("ambient")) {
+       if (!prim["ambient"].isArray()) {
+           std::cout << "primitive ambient must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray ambientArray = prim["ambient"].toArray();
+       if (ambientArray.size() != 3) {
+           std::cout << "primitive ambient array must be of size 3" << std::endl;
+           return false;
+       }
+
+       for (int i = 0; i < 3; i++) {
+           if (!ambientArray[i].isDouble()) {
+               std::cout << "primitive ambient must contain floating-point values" << std::endl;
+               return false;
+           }
+
+           mat.cAmbient[i] = ambientArray[i].toDouble();
        }
    }
 
-   // Iterate over child elements
-   QDomNode childNode = prim.firstChild();
-   while (!childNode.isNull()) {
-       QDomElement e = childNode.toElement();
-       if (e.tagName() == "diffuse") {
-           if (!parseColor(e, mat.cDiffuse)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "ambient") {
-           if (!parseColor(e, mat.cAmbient)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "reflective") {
-           if (!parseColor(e, mat.cReflective)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "specular") {
-           if (!parseColor(e, mat.cSpecular)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "emissive") {
-           if (!parseColor(e, mat.cEmissive)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "transparent") {
-           if (!parseColor(e, mat.cTransparent)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "shininess") {
-           if (!parseSingle(e, mat.shininess, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "ior") {
-           if (!parseSingle(e, mat.ior, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "texture") {
-           if (!parseMap(e, mat.textureMap, basepath)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "bumpmap") {
-           if (!parseMap(e, mat.bumpMap, basepath)) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else if (e.tagName() == "blend") {
-           if (!parseSingle(e, mat.blend, "v")) {
-               PARSE_ERROR(e);
-               return false;
-           }
-       } else {
-           UNSUPPORTED_ELEMENT(e);
+   if (prim.contains("diffuse")) {
+       if (!prim["diffuse"].isArray()) {
+           std::cout << "primitive diffuse must be of type array" << std::endl;
            return false;
        }
-       childNode = childNode.nextSibling();
+       QJsonArray diffuseArray = prim["diffuse"].toArray();
+       if (diffuseArray.size() != 3) {
+           std::cout << "primitive diffuse array must be of size 3" << std::endl;
+           return false;
+       }
+
+       for (int i = 0; i < 3; i++) {
+           if (!diffuseArray[i].isDouble()) {
+               std::cout << "primitive diffuse must contain floating-point values" << std::endl;
+               return false;
+           }
+
+           mat.cDiffuse[i] = diffuseArray[i].toDouble();
+       }
+   }
+
+   if (prim.contains("specular")) {
+       if (!prim["specular"].isArray()) {
+           std::cout << "primitive specular must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray specularArray = prim["specular"].toArray();
+       if (specularArray.size() != 3) {
+           std::cout << "primitive specular array must be of size 3" << std::endl;
+           return false;
+       }
+
+       for (int i = 0; i < 3; i++) {
+           if (!specularArray[i].isDouble()) {
+               std::cout << "primitive specular must contain floating-point values" << std::endl;
+               return false;
+           }
+
+           mat.cSpecular[i] = specularArray[i].toDouble();
+       }
+   }
+
+   if (prim.contains("reflective")) {
+       if (!prim["reflective"].isArray()) {
+           std::cout << "primitive reflective must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray reflectiveArray = prim["reflective"].toArray();
+       if (reflectiveArray.size() != 3) {
+           std::cout << "primitive reflective array must be of size 3" << std::endl;
+           return false;
+       }
+
+       for (int i = 0; i < 3; i++) {
+           if (!reflectiveArray[i].isDouble()) {
+               std::cout << "primitive reflective must contain floating-point values" << std::endl;
+               return false;
+           }
+
+           mat.cReflective[i] = reflectiveArray[i].toDouble();
+       }
+   }
+
+   if (prim.contains("transparent")) {
+       if (!prim["transparent"].isArray()) {
+           std::cout << "primitive transparent must be of type array" << std::endl;
+           return false;
+       }
+       QJsonArray transparentArray = prim["transparent"].toArray();
+       if (transparentArray.size() != 3) {
+           std::cout << "primitive transparent array must be of size 3" << std::endl;
+           return false;
+       }
+
+       for (int i = 0; i < 3; i++) {
+           if (!transparentArray[i].isDouble()) {
+               std::cout << "primitive transparent must contain floating-point values" << std::endl;
+               return false;
+           }
+
+           mat.cTransparent[i] = transparentArray[i].toDouble();
+       }
+   }
+
+   if (prim.contains("shininess")) {
+       if (!prim["shininess"].isDouble()) {
+           std::cout << "primitive shininess must be of type float" << std::endl;
+           return false;
+       }
+
+       mat.shininess = (float) prim["shininess"].toDouble();
+   }
+
+   if (prim.contains("blend")) {
+       if (!prim["blend"].isDouble()) {
+           std::cout << "primitive blend must be of type float" << std::endl;
+           return false;
+       }
+
+       mat.blend = (float) prim["blend"].toDouble();
+   }
+
+   if (prim.contains("textureFile")) {
+       if (!prim["textureFile"].isString()) {
+           std::cout << "primitive textureFile must be of type string" << std::endl;
+           return false;
+       }
+       std::filesystem::path fileRelativePath(prim["textureFile"].toString().toStdString());
+
+       mat.textureMap.filename = (basepath / fileRelativePath).string();
+       mat.textureMap.repeatU = prim.contains("textureU") && prim["textureU"].isDouble() ? prim["textureU"].toDouble() : 1;
+       mat.textureMap.repeatV = prim.contains("textureV") && prim["textureV"].isDouble() ? prim["textureV"].toDouble() : 1;
+       mat.textureMap.isUsed = true;
+   }
+
+   if (prim.contains("bumpMapFile")) {
+       if (!prim["bumpMapFile"].isString()) {
+           std::cout << "primitive bumpMapFile must be of type string" << std::endl;
+           return false;
+       }
+       std::filesystem::path fileRelativePath(prim["bumpMapFile"].toString().toStdString());
+
+       mat.bumpMap.filename = (basepath / fileRelativePath).string();
+       mat.bumpMap.repeatU = prim.contains("bumpMapU") && prim["bumpMapU"].isDouble() ? prim["bumpMapU"].toDouble() : 1;
+       mat.bumpMap.repeatV = prim.contains("bumpMapV") && prim["bumpMapV"].isDouble() ? prim["bumpMapV"].toDouble() : 1;
+       mat.bumpMap.isUsed = true;
    }
 
    return true;
