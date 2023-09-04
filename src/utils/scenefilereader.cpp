@@ -856,7 +856,7 @@ bool ScenefileReader::parsePrimitive(const QJsonObject &prim, SceneNode *node) {
             return false;
         }
 
-        std::filesystem::path relativePath(prim["meshfile"].toString().toStdString());
+        std::filesystem::path relativePath(prim["meshFile"].toString().toStdString());
         primitive->meshfile = (basepath / relativePath).string();
     }
     else {
