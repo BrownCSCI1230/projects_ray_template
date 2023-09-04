@@ -14,6 +14,8 @@ Once all images are filled in the images will be the same size in the expected a
 | unit_cylinder.json | ![expected_outputs/unit_cylinder.png](expected_outputs/unit_cylinder.png) | ![Place unit_cylinder.png in student_outputs folder](student_outputs/unit_cylinder.png) |
 | unit_sphere.json | ![expected_outputs/unit_sphere.png](expected_outputs/unit_sphere.png) | ![Place unit_sphere.png in student_outputs folder](student_outputs/unit_sphere.png) |
 |  |  |  |  |
+| parse_matrix.json | ![expected_outputs/parse_matrix.png](expected_outputs/parse_matrix.png) | ![Place parse_matrix.png in student_outputs folder](student_outputs/parse_matrix.png) |
+|  |  |  |  |
 | ambient_total.json | ![expected_outputs/ambient_total.png](expected_outputs/ambient_total.png) | ![Place ambient_total.png in student_outputs folder](student_outputs/ambient_total.png) |
 | diffuse_total.json | ![expected_outputs/diffuse_total.png](expected_outputs/diffuse_total.png) | ![Place diffuse_total.png in student_outputs folder](student_outputs/diffuse_total.png) |
 | specular_total.json | ![expected_outputs/specular_total.png](expected_outputs/specular_total.png) | ![Place specular_total.png in student_outputs folder](student_outputs/specular_total.png) |
@@ -50,6 +52,7 @@ Fill out for Illuminate only.
 | texture_cube2.json |  ![expected_outputs/texture_cube2.png](expected_outputs/texture_cube2.png) | ![Place texture_cube2.png in student_outputs folder](student_outputs/texture_cube2.png) |
 | texture_cyl.json |  ![expected_outputs/texture_cyl.png](expected_outputs/texture_cyl.png) | ![Place texture_cyl.png in student_outputs folder](student_outputs/texture_cyl.png) |
 | texture_cyl2.json |  ![expected_outputs/texture_cyl2.png](expected_outputs/texture_cyl2.png) | ![Place texture_cyl2.png in student_outputs folder](student_outputs/texture_cyl2.png) |
+| texture_cyl3.json |  ![expected_outputs/texture_cyl3.png](expected_outputs/texture_cyl3.png) | ![Place texture_cyl3.png in student_outputs folder](student_outputs/texture_cyl3.png) |
 | texture_sphere.json |  ![expected_outputs/texture_sphere.png](expected_outputs/texture_sphere.png) | ![Place texture_sphere.png in student_outputs folder](student_outputs/texture_sphere.png) |
 | texture_sphere2.json |  ![expected_outputs/texture_sphere2.png](expected_outputs/texture_sphere2.png) | ![Place texture_sphere2.png in student_outputs folder](student_outputs/texture_sphere2.png) |
 | | | |
