@@ -803,7 +803,7 @@ bool ScenefileReader::parseGroups(const QJsonValue &groups, SceneNode *parent) {
 bool ScenefileReader::parsePrimitive(const QJsonObject &prim, SceneNode *node) {
     QStringList requiredFields = {"type"};
     QStringList optionalFields = {
-        "meshFile", "ambient", "diffuse", "specular", "reflective", "transparent", "shininess",
+        "meshFile", "ambient", "diffuse", "specular", "reflective", "transparent", "shininess", "ior"
         "blend", "textureFile", "textureU", "textureV", "bumpMapFile", "bumpMapU", "bumpMapV"};
 
     QStringList allFields = requiredFields + optionalFields;
@@ -975,7 +975,16 @@ bool ScenefileReader::parsePrimitive(const QJsonObject &prim, SceneNode *node) {
             return false;
         }
 
-        mat.shininess = (float)prim["shininess"].toDouble();
+        mat.shininess = (float) prim["shininess"].toDouble();
+    }
+
+    if (prim.contains("ior")) {
+        if (!prim["ior"].isDouble()) {
+            std::cout << "primitive ior must be of type float" << std::endl;
+            return false;
+        }
+
+        mat.ior = (float) prim["ior"].toDouble();
     }
 
     if (prim.contains("blend")) {
