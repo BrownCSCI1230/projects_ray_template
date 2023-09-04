@@ -803,7 +803,7 @@ bool ScenefileReader::parseGroups(const QJsonValue &groups, SceneNode *parent) {
 bool ScenefileReader::parsePrimitive(const QJsonObject &prim, SceneNode *node) {
     QStringList requiredFields = {"type"};
     QStringList optionalFields = {
-        "meshFile", "ambient", "diffuse", "specular", "reflective", "transparent", "shininess", "ior"
+        "meshFile", "ambient", "diffuse", "specular", "reflective", "transparent", "shininess", "ior",
         "blend", "textureFile", "textureU", "textureV", "bumpMapFile", "bumpMapU", "bumpMapV"};
 
     QStringList allFields = requiredFields + optionalFields;
