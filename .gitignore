@@ -2,6 +2,9 @@
 # CS 1230 gitignore
 # ------------------------------------
 
+# build files
+build/
+
 # MacOS & clang files
 **/.DS_Store
 .qtc_clangd/
