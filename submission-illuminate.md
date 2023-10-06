@@ -4,9 +4,10 @@ Please fill this out for Illuminate only. The project handout can be found [here
 
 ## Output Comparison
 Run the program with the specified `.ini` file to compare your output (it should automatically save to the correct path).
-> If you aren't seeing your output images appear, make sure you have:<br/>
+> If your program can't find certain files or you aren't seeing your output images appear, make sure to:<br/>
 > 1. Set your working directory to the project directory
-> 2. Cloned the `scenefiles` submodule. If you forgot to do this, run `git submodule update --init --recursive` in the project directory
+> 2. Set the command-line argument in Qt Creator to `template_inis/illuminate/<ini_file_name>.ini`
+> 2. Clone the `scenefiles` submodule. If you forgot to do this when initially cloning this repository, run `git submodule update --init --recursive` in the project directory
 
 > Note: once all images are filled in, the images will be the same size in the expected and student outputs.
 
