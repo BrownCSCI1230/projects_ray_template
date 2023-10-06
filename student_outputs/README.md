@@ -1,1 +1,0 @@
-Put your outputs in this folder!
