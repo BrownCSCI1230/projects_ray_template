@@ -27,4 +27,3 @@ public:
     // @return            A boolean value indicating whether the parse was successful.
     static bool parse(std::string filepath, RenderData &renderData);
 };
-

@@ -22,6 +22,8 @@ public:
         bool enableSuperSample   = false;
         bool enableAcceleration  = false;
         bool enableDepthOfField  = false;
+        int maxRecursiveDepth    = 4;
+        bool onlyRenderNormals   = false;
     };
 
 public:
