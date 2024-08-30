@@ -41,7 +41,8 @@ add_executable(${PROJECT_NAME}
   src/utils/scenedata.h
   src/utils/scenefilereader.h
   src/utils/sceneparser.h
-  src/utils/rgba.cpp
+
+  src/utils/imagereader.h src/utils/imagereader.cpp
 
 )
 
