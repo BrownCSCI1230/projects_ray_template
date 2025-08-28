@@ -180,6 +180,15 @@ Thumbs.db
 *.dll
 *.exe
 
+# ------------------------------------
+# non-standard dev setups (CLion/nvim)
+# ------------------------------------
+# nvim cmake 
+out/
+.cache/
+.qt/
+CMakeFiles/
+
 # scene data
 data/
 configs/
