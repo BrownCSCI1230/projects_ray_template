@@ -55,7 +55,9 @@ int main(int argc, char *argv[])
     rtConfig.enableRefraction    = settings.value("Feature/refract").toBool();
 
     rtConfig.enableTextureMap = settings.value("Feature/texture").toBool();
-    rtConfig.textureFilterType = IniUtils::textureFilterTypeFromString(settings.value("Feature/texture-filter").toString());
+
+    if (rtConfig.enableTextureMap)
+        rtConfig.textureFilterType = IniUtils::textureFilterTypeFromString(settings.value("Feature/texture-filter").toString());
 
     rtConfig.enableParallelism   = settings.value("Feature/parallel").toBool();
 
