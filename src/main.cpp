@@ -4,6 +4,7 @@
 #include <QtCore>
 
 #include <iostream>
+#include "utils/ini_utils.h"
 #include "utils/sceneparser.h"
 #include "raytracer/raytracer.h"
 #include "raytracer/raytracescene.h"
@@ -52,14 +53,30 @@ int main(int argc, char *argv[])
     rtConfig.enableShadow        = settings.value("Feature/shadows").toBool();
     rtConfig.enableReflection    = settings.value("Feature/reflect").toBool();
     rtConfig.enableRefraction    = settings.value("Feature/refract").toBool();
-    rtConfig.enableTextureMap    = settings.value("Feature/texture").toBool();
-    rtConfig.enableTextureFilter = settings.value("Feature/texture-filter").toBool();
+
+    rtConfig.enableTextureMap = settings.value("Feature/texture").toBool();
+    rtConfig.textureFilterType = IniUtils::textureFilterTypeFromString(settings.value("Feature/texture-filter").toString());
+
     rtConfig.enableParallelism   = settings.value("Feature/parallel").toBool();
+
     rtConfig.enableSuperSample   = settings.value("Feature/super-sample").toBool();
+    if (settings.contains("Settings/samples-per-pixel"))
+        rtConfig.samplesPerPixel = settings.value("Settings/samples-per-pixel").toInt();
+    if (settings.contains("Settings/super-sampler-pattern"))
+        rtConfig.superSamplerPattern = IniUtils::superSamplerPatternFromString(settings.value("Settings/super-sampler-pattern").toString());
+
     rtConfig.enableAcceleration  = settings.value("Feature/acceleration").toBool();
     rtConfig.enableDepthOfField  = settings.value("Feature/depthoffield").toBool();
     rtConfig.maxRecursiveDepth   = settings.value("Settings/maximum-recursive-depth").toInt();
     rtConfig.onlyRenderNormals   = settings.value("Settings/only-render-normals").toBool();
+
+    rtConfig.enableMipMapping = settings.value("Feature/mipmapping").toBool();
+
+    if (rtConfig.textureFilterType == TextureFilterType::Trilinear && !rtConfig.enableMipMapping) {
+        std::cerr << "Error: Trilinear filtering requires mip-mapping." << std::endl;
+        a.exit(1);
+        return 1;
+    }
 
     RayTracer raytracer{ rtConfig };
 
