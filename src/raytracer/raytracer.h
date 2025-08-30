@@ -1,7 +1,11 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "utils/ini_utils.h"
 #include "utils/rgba.h"
+
+#define RAY_TRACE_MAX_DEPTH 4
+#define RAY_TRACE_DEFAULT_SPP 64
 
 // A forward declaration for the RaytraceScene class
 
@@ -17,13 +21,16 @@ public:
         bool enableReflection    = false;
         bool enableRefraction    = false;
         bool enableTextureMap    = false;
-        bool enableTextureFilter = false;
+        TextureFilterType textureFilterType = TextureFilterType::Nearest;
         bool enableParallelism   = false;
         bool enableSuperSample   = false;
         bool enableAcceleration  = false;
         bool enableDepthOfField  = false;
-        int maxRecursiveDepth    = 4;
+        int maxRecursiveDepth    = RAY_TRACE_MAX_DEPTH;
+        int samplesPerPixel      = RAY_TRACE_DEFAULT_SPP;
+        SuperSamplerPattern superSamplerPattern = SuperSamplerPattern::Grid;
         bool onlyRenderNormals   = false;
+        bool enableMipMapping    = false;
     };
 
 public:
