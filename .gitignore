@@ -183,6 +183,11 @@ Thumbs.db
 # ------------------------------------
 # non-standard dev setups (CLion/nvim)
 # ------------------------------------
+# CLion
+.idea/
+.clang-tidy
+.clang-format
+
 # nvim cmake 
 out/
 .cache/
