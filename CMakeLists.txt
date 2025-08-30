@@ -43,6 +43,7 @@ add_executable(${PROJECT_NAME}
   src/utils/sceneparser.h
 
   src/utils/imagereader.h src/utils/imagereader.cpp
+  src/utils/ini_utils.h src/utils/ini_utils.cpp
 
 )
 
