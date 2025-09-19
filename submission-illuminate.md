@@ -1,4 +1,4 @@
-# Project 4: Illuminate
+# Project 3: Illuminate
 
 Please fill this out for Illuminate only. The project handout can be found [here](https://cs1230.graphics/projects/ray/2).
 
