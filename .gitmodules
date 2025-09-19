@@ -1,3 +1,3 @@
 [submodule "scenefiles"]
 	path = scenefiles
-	url = git@github.com:BrownCSCI1230/scenefiles.git
+	url = https://github.com/BrownCSCI1230/scenefiles.git
