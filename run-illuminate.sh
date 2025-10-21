@@ -21,7 +21,7 @@ if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "
   export PATH="$QT_BIN_DIR:$PATH"
 fi
 
-BUILD_PROJECT_DIR=$(find build -type d -name "build-projects-ray-*-Release" -print -quit)
+BUILD_PROJECT_DIR=$(find build -type d -name "build-projects_*-Release" -print -quit)
 
 if [ -z "$BUILD_PROJECT_DIR" ]; then
   echo "Error: Build directory for the project not found."
