@@ -38,6 +38,7 @@ add_executable(${PROJECT_NAME}
   src/raytracer/raytracer.h
   src/raytracer/raytracescene.h
   src/utils/rgba.h
+  src/utils/mippalette.h
   src/utils/scenedata.h
   src/utils/scenefilereader.h
   src/utils/sceneparser.h
