@@ -25,7 +25,7 @@ Run the program with the specified `.ini` file to compare your output (it should
 |        unit_sphere.ini        |     ![](https://raw.githubusercontent.com/BrownCSCI1230/scenefiles/main/intersect/required_outputs/unit_sphere.png)      |      ![Place unit_sphere.png in student_outputs/intersect/required folder](student_outputs/intersect/required/unit_sphere.png)       |
 |        unit_sphere_inside.ini        |     ![](https://raw.githubusercontent.com/BrownCSCI1230/scenefiles/main/intersect/required_outputs/unit_sphere_inside.png)      |      ![Place unit_sphere_inside.png in student_outputs/intersect/required folder](student_outputs/intersect/required/unit_sphere_inside.png)       |
 |       parse_matrix.ini        |     ![](https://raw.githubusercontent.com/BrownCSCI1230/scenefiles/main/intersect/required_outputs/parse_matrix.png)     |     ![Place parse_matrix.png in student_outputs/intersect/required folder](student_outputs/intersect/required/parse_matrix.png)      |
-|           normal_total.ini           |     ![](https://raw.githubusercontent.com/BrownCSCI1230/scenefiles/main/intersect/required_outputs/normal_total.png)     |         ![Place normal_total.png in student_outputs/intersect/required folder](student_outputs/intersect/required/total.png)         |
+|           normal_total.ini           |     ![](https://raw.githubusercontent.com/BrownCSCI1230/scenefiles/main/intersect/required_outputs/normal_total.png)     |         ![Place normal_total.png in student_outputs/intersect/required folder](student_outputs/intersect/required/normal_total.png)         |
 
 
 
