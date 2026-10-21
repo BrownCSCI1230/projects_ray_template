@@ -197,3 +197,10 @@ CMakeFiles/
 # scene data
 data/
 configs/
+
+# ------------------------------------
+# project specific
+# ------------------------------------
+antialias_demo/
+illuminate_demo/
+intersect_demo/
